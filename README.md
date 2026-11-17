@@ -2,6 +2,28 @@
 
 Heterogeneous System Architecture for MoE Edge Acceleration.
 
+## 仓库结构
+
+v1 以保持 OpenTPU ISA 兼容为基础，面向 ZCU102 等 FPGA 上的 Qwen 文本推理，并通过 PC 网页提供对话。
+
+```text
+HSA-MoE-ACC/
+├── README.md                 # 项目说明和协作流程
+├── docs/                     # v1 规格、ISA 兼容性和板级接口文档
+├── third_party/
+│   └── opentpu/              # 固定版本的 OpenTPU 源码、文档和许可证
+├── boards/
+│   └── zcu102/               # 板级顶层、约束、构建脚本和 PS 端适配
+├── rtl/                      # 本项目开发和优化的 SystemVerilog 模块
+├── host/                     # PC 运行时、板卡后端和对话 API
+├── web/                      # 浏览器对话界面
+├── configs/                  # 板卡、模型版本、量化和运行配置
+├── tools/                    # 权重准备、构建入口和性能统计工具
+└── tests/                    # ISA 对照、RTL 回归及实板和网页验收
+```
+
+项目目录中的 `.gitkeep` 用于在 Git 中保留空目录。导入的 [OpenTPU 上游快照](https://github.com/FeSens/openTPU/commit/d84db55712aba0d40811d7762cb052f05d55b7e5) 保留了 [Apache-2.0 许可证](third_party/opentpu/LICENSE)和[第三方许可说明](third_party/opentpu/THIRD_PARTY.md)。
+
 # 仓库管理须知
 
 ## 简述
