@@ -31,11 +31,29 @@ Heterogeneous System Architecture for MoE Edge Acceleration.
 
 ### 日常开发与提交
 
+开始修改前，按当前任务的状态选择一种同步方式。
+
+**新建工作分支时，先更新本地 `main`。**
+
 ```bash
 git switch main
 git pull --ff-only origin main
 git switch -c feat/24-expert-dispatch
-# 修改并验证后，按文件暂存
+```
+
+**继续已有工作分支时，先把远程 `main` 的更新合入该分支。**
+
+```bash
+git switch feat/24-expert-dispatch
+git fetch origin
+git merge origin/main
+```
+
+如果合并出现冲突，解决后用 `git add` 暂存相关文件，再执行 `git merge --continue`。开发或 PR 审查期间需要再次同步时，可在工作分支重复这一步，并重新运行相关验证。
+
+**修改并验证后，提交和推送工作分支。**
+
+```bash
 git add <文件路径>
 git diff --cached
 git commit -m "feat(rtl): add expert dispatch queue"
@@ -78,9 +96,20 @@ BREAKING CHANGE: Update the host driver to use the new register offsets.
 - Vivado／Vitis 缓存、临时构建目录、仿真波形及生成日志应排除在版本控制之外。需要共享的 bitstream、模型权重和大型数据可使用有相应访问控制的 Git LFS、Release 附件或团队制品存储。发布可复用的硬件制品时记录对应 commit、工具版本、板卡及构建参数。
 - 不提交密钥、访问令牌、许可证文件或含凭据的本地配置。
 
-### 参考规范
+## 模块优化流程
+
+以基于 OpenTPU 的 SystemVerilog 模块优化为例，按以下顺序推进：
+
+1. **编写模块 Spec 并固定基线。** 记录基线 commit、目标板卡和构建配置，明确瓶颈、优化目标、数值规则、接口握手与回压行为，以及允许变化的延迟和资源预算。
+2. **实现并接入候选模块。** 保持上层依赖的模块名、参数、端口及握手语义，在独立分支或 worktree 中按原路径替换。确认 RTL 仿真和综合选中同一份候选源码。
+3. **用 ISA 模拟器验证数值。** 使用相同指令、输入和初始内存，逐位比较候选 RTL 的输出、状态和写回数据。若有意改变指令数值语义，按 Spec 更新 ISA 参考和测试。
+4. **与基线 RTL 对照接口行为。** 覆盖连续指令、访存回压和读写依赖，核对写回地址、数据、次数与完成顺序。按事务对齐两版，分别记录 Spec 允许变化的周期数。
+5. **评估性能与硬件开销。** 在相同器件、时钟约束和负载下，先做模块独立综合，再做整核仿真和目标板实现。比较延迟、吞吐、时序裕量和 LUT、FF、DSP、BRAM 等资源。将基线与候选的配置、命令和结果附在 PR 中。
+
+## 参考资料
 
 - [GitHub Flow](https://docs.github.com/en/get-started/using-github/github-flow)
 - [GitHub 分支规则集](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/creating-rulesets-for-a-repository)
 - [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/)
 - [GitHub 大文件管理](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github)
+- [FeSens/openTPU 仓库](https://github.com/FeSens/openTPU)
