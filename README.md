@@ -24,6 +24,10 @@ HSA-MoE-ACC/
 
 项目目录中的 `.gitkeep` 用于在 Git 中保留空目录。导入的 [OpenTPU 上游快照](https://github.com/FeSens/openTPU/commit/d84db55712aba0d40811d7762cb052f05d55b7e5) 保留了 [Apache-2.0 许可证](third_party/opentpu/LICENSE)和[第三方许可说明](third_party/opentpu/THIRD_PARTY.md)。
 
+## 设计文档
+
+- [HSA-MoE-ACC v1 顶层设计 Spec](docs/HSA-MoE-ACC-v1_顶层设计Spec.md)：PC–PS–PL架构、Qwen部署预算、ISA与模块接口、优化候选及分阶段验证和验收。
+
 # 仓库管理须知
 
 ## 简述
