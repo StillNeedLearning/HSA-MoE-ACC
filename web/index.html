@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="application-name" content="OpenTPU Chat">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+  <title>OpenTPU · 本地对话</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --canvas: #f6f7fb; --surface: #fff; --ink: #1c2235; --quiet: #5a6279;
+      --line: #dce0ed; --accent: #4b40a0; --accent-dark: #372c80;
+      --tint: #eceafa; --user: #e8e6f8; --danger: #a13b4c;
+      font: 15px/1.55 Inter, "Microsoft YaHei UI", "Noto Sans CJK SC", sans-serif;
+      background: var(--canvas); color: var(--ink);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+    button, textarea, select { font: inherit; color: inherit; }
+    button, select { cursor: pointer; }
+    button:disabled, select:disabled { cursor: default; opacity: .6; }
+    button:focus-visible, a:focus-visible, textarea:focus-visible, select:focus-visible {
+      outline: 2px solid var(--accent); outline-offset: 3px;
+    }
+    header { background: var(--surface); border-bottom: 1px solid var(--line); }
+    .top, .column { width: min(100% - 40px, 800px); margin-inline: auto; }
+    .top { min-height: 70px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .brand, .actions, .status { display: flex; align-items: center; gap: 10px; }
+    .brand-mark, .avatar { display: grid; place-items: center; flex: 0 0 auto; font-weight: 700; }
+    .brand-mark { width: 36px; height: 36px; border-radius: 10px; background: var(--accent); color: white; font-family: "IBM Plex Mono", Consolas, monospace; }
+    .brand strong { font-size: 16px; display: block; }
+    .brand small { display: block; color: var(--quiet); font-size: 12px; }
+    .status { gap: 6px; font-size: 12px; color: var(--quiet); white-space: nowrap; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #868ea3; }
+    .status.ready .dot { background: #1c815f; }
+    .status.offline .dot { background: var(--danger); }
+    .outline, .example { border: 1px solid var(--line); background: var(--surface); border-radius: 9px; }
+    .outline { padding: 7px 11px; white-space: nowrap; }
+    .outline:hover:not(:disabled), .example:hover { border-color: var(--accent); color: var(--accent); }
+    main { overflow-y: auto; overscroll-behavior: contain; }
+    main > .column { min-height: 100%; display: flex; flex-direction: column; }
+    #welcome { margin: auto 0; padding: 38px 0; }
+    #welcome[hidden] { display: none; }
+    h1 { font-size: clamp(30px, 5vw, 48px); margin: 0 0 9px; line-height: 1.16; letter-spacing: -.045em; }
+    p { margin: 0; }
+    .model-line { color: var(--quiet); }
+    .examples { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 24px; max-width: 570px; }
+    .example { text-align: left; padding: 11px 14px; }
+    .example::after { content: "↗"; float: right; color: var(--accent); margin-left: 8px; }
+    #messages { margin: 0; padding: 28px 0; list-style: none; display: grid; gap: 22px; }
+    #messages:empty { display: none; }
+    .message { display: flex; align-items: flex-start; gap: 10px; }
+    .message.user { flex-direction: row-reverse; }
+    .avatar { width: 30px; height: 30px; border-radius: 8px; background: var(--tint); color: var(--accent-dark); font-size: 12px; }
+    .message.user .avatar { background: #dce1ec; color: #37405c; }
+    .bubble { padding: 10px 14px; border: 1px solid var(--line); background: var(--surface); border-radius: 4px 13px 13px 13px; max-width: min(89%, 650px); white-space: pre-wrap; overflow-wrap: anywhere; }
+    .user .bubble { border-radius: 13px 4px 13px 13px; background: var(--user); border-color: #d9d4f1; }
+    .pending { color: var(--quiet); }
+    footer { background: var(--canvas); padding: 8px 0 12px; }
+    .composer { padding: 10px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); box-shadow: 0 3px 14px #202a4610; }
+    .composer:focus-within { border-color: #a39ace; }
+    textarea { display: block; width: 100%; min-height: 56px; max-height: 160px; border: 0; padding: 6px 8px; resize: vertical; background: transparent; }
+    textarea:focus-visible { outline: none; }
+    .controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    select { padding: 5px 7px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--quiet); font-size: 12px; }
+    .send { border: 1px solid transparent; background: var(--accent); color: white; border-radius: 8px; padding: 7px 15px; font-weight: 600; }
+    .send:hover:not(:disabled) { background: var(--accent-dark); }
+    .footnote { display: flex; justify-content: space-between; color: var(--quiet); font-size: 12px; padding: 7px 3px 0; }
+    a { color: var(--accent); text-underline-offset: 3px; }
+    #notice { color: var(--danger); font-size: 13px; margin-bottom: 7px; white-space: pre-wrap; }
+    #notice:empty { display: none; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    [hidden] { display: none !important; }
+    @media (max-width: 520px) {
+      .top, .column { width: calc(100% - 24px); }
+      .top { min-height: 62px; }
+      .examples { grid-template-columns: 1fr; }
+      #welcome { padding: 24px 0; }
+      .message { gap: 7px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="top">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">&gt;_</span>
+        <div><strong>OpenTPU</strong><small>本地对话</small></div>
+      </div>
+      <div class="actions">
+        <span class="status" id="status" role="status"><span class="dot" aria-hidden="true"></span><span id="status-text">连接中</span></span>
+        <button id="reset" class="outline" type="button">新对话</button>
+      </div>
+    </div>
+  </header>
+  <main id="chat">
+    <div class="column">
+      <section id="welcome">
+        <h1>开始对话</h1>
+        <p class="model-line"><span id="model-name">等待模型</span></p>
+        <div class="examples">
+          <button class="example" type="button" data-prompt="What is the capital of France? Answer in one sentence.">法国的首都是哪里？</button>
+          <button class="example" type="button" data-prompt="用一句话解释什么是太阳能。">什么是太阳能？</button>
+        </div>
+      </section>
+      <ol id="messages" aria-label="对话记录"></ol>
+      <span class="sr-only" id="announcement" role="status"></span>
+    </div>
+  </main>
+  <footer>
+    <div class="column">
+      <p id="notice" role="alert"></p>
+      <form id="composer" class="composer">
+        <label class="sr-only" for="prompt">消息</label>
+        <textarea id="prompt" rows="2" maxlength="6000" placeholder="输入消息…" required></textarea>
+        <div class="controls">
+          <label class="sr-only" for="max-tokens">回复长度</label>
+          <select id="max-tokens">
+            <option value="4">冒烟测试 · 4 tokens</option>
+            <option value="12">简短 · 12 tokens</option>
+            <option value="24" selected>标准 · 24 tokens</option>
+            <option value="64">较长 · 64 tokens</option>
+          </select>
+          <button id="send" class="send" type="submit" disabled>发送 ↑</button>
+          <button id="stop" class="outline" type="button" hidden>停止生成</button>
+        </div>
+      </form>
+      <div class="footnote"><span>Enter 发送 · Shift+Enter 换行</span><a href="/dashboard" target="_blank" rel="noopener">运行监控 ↗</a></div>
+    </div>
+  </footer>
+  <script>
+    "use strict";
+
+    const get = (id) => document.getElementById(id);
+    const chat = get("chat");
+    const welcome = get("welcome");
+    const messages = get("messages");
+    const promptBox = get("prompt");
+    const form = get("composer");
+    const send = get("send");
+    const stop = get("stop");
+    const reset = get("reset");
+    const notice = get("notice");
+    const connectionBadge = get("status");
+    const statusText = get("status-text");
+    const announcement = get("announcement");
+    const storagePrefix = "opentpu-chat-conversation:";
+
+    let conversation = [];
+    let model = null;
+    let active = null;
+
+    function restoreHistory() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(storagePrefix + model) || "[]");
+        if (!Array.isArray(saved)) return [];
+        const valid = [];
+        for (let index = 0; index + 1 < saved.length; index += 2) {
+          const user = saved[index];
+          const assistant = saved[index + 1];
+          if (user?.role !== "user" || assistant?.role !== "assistant" ||
+              typeof user.content !== "string" || typeof assistant.content !== "string") break;
+          valid.push({role: "user", content: user.content}, {role: "assistant", content: assistant.content});
+        }
+        return valid;
+      } catch {
+        return [];
+      }
+    }
+
+    function saveHistory() {
+      if (!model) return;
+      try {
+        localStorage.setItem(storagePrefix + model, JSON.stringify(conversation));
+      } catch {
+        // The current conversation stays usable if browser storage is unavailable.
+      }
+    }
+
+    function scrollToLatest() {
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function appendMessage(role, content) {
+      const item = document.createElement("li");
+      item.className = "message " + role;
+      const avatar = document.createElement("span");
+      avatar.className = "avatar";
+      avatar.textContent = role === "user" ? "你" : ">_";
+      avatar.setAttribute("aria-hidden", "true");
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.setAttribute("aria-label", role === "user" ? "你的消息" : "模型回复");
+      bubble.textContent = content;
+      item.append(avatar, bubble);
+      messages.append(item);
+      welcome.hidden = true;
+      scrollToLatest();
+      return bubble;
+    }
+
+    function setBusy(busy) {
+      send.hidden = busy;
+      send.disabled = busy || !model;
+      stop.hidden = !busy;
+      reset.disabled = busy;
+      get("max-tokens").disabled = busy;
+    }
+
+    function displayError(error) {
+      const message = error instanceof Error ? error.message : String(error);
+      notice.textContent = message.includes("maximum context length")
+        ? "对话已达到上下文上限。请新建对话或缩短输入。"
+        : "发送失败。 " + message;
+    }
+
+    async function connect() {
+      try {
+        const response = await fetch("/v1/models", {cache: "no-store"});
+        if (!response.ok) throw new Error("服务暂未就绪");
+        const data = await response.json();
+        model = data.data?.[0]?.id;
+        if (!model) throw new Error("找不到模型");
+        get("model-name").textContent = model;
+        conversation = restoreHistory();
+        for (const message of conversation) appendMessage(message.role, message.content);
+        connectionBadge.className = "status ready";
+        statusText.textContent = "已连接";
+        setBusy(false);
+      } catch {
+        connectionBadge.className = "status offline";
+        statusText.textContent = "等待服务";
+        window.setTimeout(connect, 2500);
+      }
+    }
+
+    async function readReply(response, onDelta) {
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.error?.message || "HTTP " + response.status);
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      try {
+        while (true) {
+          const {value, done} = await reader.read();
+          buffer += decoder.decode(value, {stream: !done});
+          const lines = buffer.split("\n");
+          buffer = lines.pop();
+          for (const line of lines) {
+            if (!line.startsWith("data:")) continue;
+            const data = line.slice(5).trim();
+            if (data === "[DONE]") return;
+            if (!data) continue;
+            const chunk = JSON.parse(data);
+            if (chunk.error) throw new Error(chunk.error.message || "生成失败");
+            const content = chunk.choices?.[0]?.delta?.content;
+            if (typeof content === "string") onDelta(content);
+          }
+          if (done) throw new Error("流式回复连接已中断");
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const content = promptBox.value.trim();
+      if (!content || !model || active) return;
+
+      notice.textContent = "";
+      promptBox.value = "";
+      const user = {role: "user", content};
+      const transcript = [...conversation, user];
+      const userBubble = appendMessage("user", content);
+      const reply = appendMessage("assistant", "正在生成…");
+      reply.classList.add("pending");
+      active = new AbortController();
+      setBusy(true);
+
+      let text = "";
+      try {
+        const response = await fetch("/v1/chat/completions", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          signal: active.signal,
+          body: JSON.stringify({
+            model, messages: transcript, max_tokens: Number(get("max-tokens").value),
+            stream: true, temperature: 0, repetition_penalty: 1
+          })
+        });
+        await readReply(response, (delta) => {
+          text += delta;
+          reply.classList.remove("pending");
+          reply.textContent = text;
+          scrollToLatest();
+        });
+        if (!text.trim()) throw new Error("模型没有生成文本，请换一种问法。");
+        announcement.textContent = "回复已完成";
+      } catch (error) {
+        if (error.name === "AbortError") {
+          announcement.textContent = "已停止生成";
+        } else {
+          displayError(error);
+        }
+      } finally {
+        if (text.trim()) {
+          conversation = [...transcript, {role: "assistant", content: text}];
+          saveHistory();
+        } else {
+          userBubble.parentElement.remove();
+          reply.parentElement.remove();
+          if (!promptBox.value) promptBox.value = content;
+          welcome.hidden = conversation.length > 0;
+        }
+        active = null;
+        setBusy(false);
+        promptBox.focus();
+      }
+    });
+
+    promptBox.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing && event.keyCode !== 229) {
+        event.preventDefault();
+        if (!active && model) form.requestSubmit();
+      }
+    });
+
+    document.querySelectorAll("[data-prompt]").forEach((example) => {
+      example.addEventListener("click", () => {
+        promptBox.value = example.dataset.prompt;
+        promptBox.focus();
+      });
+    });
+
+    stop.addEventListener("click", () => active?.abort());
+    reset.addEventListener("click", () => {
+      if (active) return;
+      conversation = [];
+      saveHistory();
+      messages.replaceChildren();
+      welcome.hidden = false;
+      notice.textContent = "";
+      promptBox.value = "";
+      promptBox.focus();
+    });
+
+    connect();
+  </script>
+</body>
+</html>
